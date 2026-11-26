@@ -14,7 +14,8 @@ from src.utils.time import utc_stamp
 
 
 def run_info(run, review):
-    fields = ('id', 'label', 'dataset_id', 'created_at', 'status', 'settings')
+    fields = ('id', 'label', 'dataset_id', 'created_at', 'status', 'settings',
+              'kind', 'handover_id', 'phase', 'parent_run_id')
     return {**{key: getattr(run, key) for key in fields}, 'decision': review.decision if review else None}
 
 
@@ -64,6 +65,13 @@ def export_table(session, run_id, key, actor):
     run, review = get_run(session, run_id, actor)
     if review is None or review.decision != Decision.APPROVED:
         raise HTTPException(409, '复核通过后可下载正式 CSV')
+    # 复测运行只有成为交接批次当前生效版本时，才允许正式下载；
+    # 被后续版本取代的过期计算一律不得生效。
+    if run.kind == 'recheck':
+        from src.models.handover import Handover
+        handover = session.scalar(select(Handover).where(Handover.id == run.handover_id))
+        if handover is None or handover.active_run_id != run.id:
+            raise HTTPException(409, '该复测版本已过期，不能作为正式 CSV 下载')
     for table in run.result['tables']:
         if table['key'] == key:
             return table

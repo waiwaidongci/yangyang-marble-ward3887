@@ -5,6 +5,7 @@ from src.constants.workflow import RunStatus
 from src.models.review import Review
 from src.models.run import Run
 from src.services.audit import record
+from src.services.handovers import apply_approved_switch
 from src.utils.time import utc_stamp
 
 
@@ -21,6 +22,18 @@ def submit(session, run_id, payload, actor):
     review = Review(run_id=run_id, reviewer_id=actor.id, decision=payload.decision,
                     note=payload.note, created_at=utc_stamp())
     session.add(review)
+    switch_outcome = None
+    if payload.decision == 'approved':
+        # 复测版本在复核通过的同一事务内一次性切换；失败则整笔签核回滚，
+        # 过期计算不会成为生效版本。
+        switch_outcome = apply_approved_switch(session, run, actor)
     record(session, 'review.' + payload.decision, run_id, actor.id)
     session.commit()
-    return review_info(review)
+    response = review_info(review)
+    if switch_outcome is not None:
+        response['switch'] = {
+            'stale_group_ids': switch_outcome['stale_group_ids'],
+            'effective_group_ids': [group['group_id'] for group in switch_outcome['effective_groups']],
+            'quota_remaining_after_switch': switch_outcome['quota_remaining_after_switch'],
+        }
+    return response

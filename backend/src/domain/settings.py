@@ -22,10 +22,13 @@ SETTINGS = [
 SPEC = {
     'columns': list(FIELDS), 'fields': FIELDS, 'settings': SETTINGS,
     'modules': {'datasets': '边角料测量台账', 'runs': '缩放冻结与 Ward 层次',
-                'results': '切树比选与套件成员', 'reviews': '分拣交班签核'},
+                'results': '切树比选与套件成员', 'reviews': '分拣交班签核',
+                'handovers': '边封袋边复测的交接批次、封袋快照与版本切换'},
     'dataset_name': '20261125-河埠石材边角料.csv',
     'limitation': '每份台账最多 240 件待分拣料。明度与外接矩形仅用于初筛，备料前复测可用边与板面瑕疵。',
-    'recommendation': '比较各切树候选与搁置清单，复核后将同一候选的套件成员表交给拣料员。',
+    'recommendation': '比较各切树候选与搁置清单，复核后将同一候选的套件成员表交给拣料员；'
+                      '封袋与复测并发时，已封袋套件原样交接并占用套数上限，'
+                      '未封袋件按最新读数重建 Ward 树，新版复核通过后一次性切换。',
 }
 
 

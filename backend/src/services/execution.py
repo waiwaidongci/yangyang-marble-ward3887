@@ -6,6 +6,7 @@ from sqlalchemy import select, update
 from src.config.database import Session
 from src.constants.workflow import RunStatus
 from src.domain.project import analyze
+from src.domain.recheck import analyze_recheck
 from src.models.dataset import Dataset
 from src.models.run import Run
 from src.services.audit import record
@@ -25,15 +26,26 @@ def claim():
         run.status = RunStatus.RUNNING
         dataset = session.get(Dataset, run.dataset_id)
         record(session, 'run.started', run.id)
-        return run.id, dataset.rows, run.settings
+        if run.kind == 'recheck':
+            return {'id': run.id, 'kind': 'recheck', 'rows': dataset.rows,
+                    'settings': run.settings, 'context': run.recheck_context}
+        return {'id': run.id, 'kind': 'initial', 'rows': dataset.rows,
+                'settings': run.settings}
 
 
 def execute(job):
-    run_id, rows, settings = job
+    run_id = job['id']
     result = None
     error_message = None
     try:
-        result = analyze(rows, settings)
+        if job['kind'] == 'recheck':
+            context = job['context']
+            result = analyze_recheck(
+                job['rows'], job['settings'], set(context['sealed_piece_ids']),
+                context['scaling_rows'], context['remaining_kits'],
+                phase=context['phase'])
+        else:
+            result = analyze(job['rows'], job['settings'])
         json.dumps(result, ensure_ascii=False, allow_nan=False)
     except ValueError as error:
         result = None

@@ -18,3 +18,7 @@ class RunInfo(BaseModel):
     status: RunStatus
     settings: dict
     decision: str | None
+    kind: str | None = None
+    handover_id: int | None = None
+    phase: int | None = None
+    parent_run_id: int | None = None

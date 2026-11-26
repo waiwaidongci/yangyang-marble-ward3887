@@ -57,6 +57,22 @@ curl --fail-with-body -sS \
   -o kit-members.csv
 ```
 
+## 边封袋边复测
+
+初版运行复核通过后开立交接批次，封袋与复测并发进行；已封袋套件原样交接并占用套数上限，未封袋件用最新读数重建 Ward 树，新版复核通过后一次性切换，过期分组不能封袋、过期复测不能下载。
+
+| 操作 | 请求 | 说明 |
+|---|---|---|
+| 开立交接批次 | `POST /api/handovers` | 传 `base_run_id` 与可选 `max_kits`（默认取建议切法的可交接套数） |
+| 查看交接状态 | `GET /api/handovers/{id}` | 返回生效运行、已封袋套数/件数、剩余名额、已封袋件编号与切换日志 |
+| 封袋确认 | `POST /api/handovers/{id}/seals` | 传当前生效版本的 `group_id`；成员快照即刻冻结，先确认者为准 |
+| 查看封袋记录 | `GET /api/handovers/{id}/seals` | 每袋的运行版本、套件编号与成员编号 |
+| 提交复测 | `POST /api/handovers/{id}/rechecks` | `csv` 必须恰好覆盖全部未封袋待分拣件，沿用冻结标尺与原门槛 |
+| 复核并切换 | `POST /api/runs/{复测id}/review` | 管理员批准即在同一事务切换生效版本，返回过期组与切换后剩余名额 |
+
+复测运行沿用普通运行的 `GET /api/runs/{id}` 查看结果；正式下载仍走 `GET /api/runs/{id}/export/{key}`，但只有交接批次当前生效版本的复测运行允许下载。复测新增表键 `kit_selection`（跨深度套件选择）、`recheck_members`（未封袋成员归组）和 `sealed_snapshot`（已封袋件快照）。选择套件时先在剩余名额内最大化交接件数，持平比较簇内 SSE 总和，再按成员编号字典序。详见 [BUSINESS.md](BUSINESS.md) 的“边封袋边复测”。
+
+
 ## 本地开发
 
 领域接口位于 `backend/src/domain/project.py`。`records.py` 校验台账和尺寸，`scaling.py` 冻结历史标尺，`ward.py` 建树，`cuts.py` 比选切树和套件，`reports.py` 生成导出。角色、运行状态、复核决定分别由 `Role`、`RunStatus`、`Decision` 定义于 `backend/src/constants/workflow.py`，用于鉴权、运行详情及签核。台账用途 `train`、`holdout`、`pending` 定义于领域 `settings.py`，由导入校验和计算入口共用。
@@ -67,5 +83,12 @@ curl --fail-with-body -sS \
 PYTHONPATH=projects/yangyang-marble-ward/backend \
   python3 test-artifacts/yangyang-marble-ward/tests/oracle.py
 ```
+
+边封袋边复测的领域规则与服务工作流测试同样只依赖标准库（服务层测试通过 `tests/support.py` 注入最小依赖替身），在 `backend/` 下直接运行：
+
+```bash
+PYTHONPATH=. python3 -m unittest discover -s tests -v
+```
+
 
 [CSV 示例、Ward 合并代价与交班剧本](BUSINESS.md)
